@@ -131,8 +131,14 @@ def cleanUpList(s_list):
 # this function as the goal testing function, A* will never
 # terminate until the whole search space is exhausted.
 def goal_test(s):
-    raise NotImplementedError()
-
+    # Iterate over the s
+    # if find any box, return False
+    for row in s:
+        for val in row: 
+            if isBox(val):
+                return False 
+    # no box found, return True 
+    return True
 
 # EXERCISE: Modify this function to return the list of
 # successor states of s (numpy array).
@@ -151,12 +157,123 @@ def goal_test(s):
 # A shallow copy (e.g, direcly set s1 = s) constructs a new compound object and then inserts references 
 # into it to the objects found in the original. In this case, any change in the numpy array s1 will also affect
 # the original array s. Thus, you may need a deep copy (e.g, s1 = np.copy(s)) to construct an indepedent array.
-def next_states(s):
-    row, col = getKeeperPosition(s)
-    s_list = []
-    s1 = np.copy(s)
 
-    # NOT IMPLEMENTED YET! YOU NEED TO FINISH THIS FUNCTION.
+def get_square(S, r, c):
+    '''
+    check the square is in the range. If in range, return s[r][c]
+
+    input: 
+        S: new state
+        r: row
+        c: col
+    '''
+    # check range
+    if r < 0 or r >= len(S) or c < 0 or c >= len(S[r]):
+        return wall
+    else:
+        # return the value stored in the square
+        return S[r][c]
+
+def set_square(S, r, c, v):
+    '''
+    set S[r][c] with value v
+
+    input: 
+        S: new state
+        r: row
+        c: col
+        v: new value
+    '''
+    if r < 0 or r >= len(S) or c < 0 or c >= len(S[r]):
+        raise IndexError("Row or column is out of the bounds of the state.")
+    # Set S(r, c) to value v
+    S[r][c] = v
+
+def try_move(S, D):
+    '''
+    - creates a copy of the original state
+    - tries to move the the keeper in state S in direction D. 
+        -valid: update new state S_prime, return S_prime
+
+    input:
+        S: the original state
+        D: directions ('up', 'down', 'left', 'right')
+    '''
+
+    # Directions
+    directions = {
+        'up': (-1, 0),
+        'down': (1, 0),
+        'left': (0, -1),
+        'right': (0, 1)
+    }
+
+    if D not in directions:
+        return None
+
+    # keeper's position
+    keeper_r, keeper_c = getKeeperPosition(S)
+
+    # move
+    delta_r, delta_c = directions[D]
+
+    # target and squares' positions
+    target_r = keeper_r + delta_r
+    target_c = keeper_c + delta_c
+    
+    square_r = target_r + delta_r
+    square_c = target_c + delta_c
+
+    # get value of target and square
+    target_val = get_square(S, target_r, target_c)
+    square_val = get_square(S, square_r, square_c)
+
+    # copy original state
+    S_prime = np.copy(S)
+
+    # cannot move to a wall
+    if isWall(target_val):
+        return None
+
+    # check square beyond box
+    if isBox(target_val) or isBoxstar(target_val):
+        # check validity:
+        if isWall(square_val) or isBox(square_val) or isBoxstar(square_val):
+            return None
+        
+        # move box
+        set_square(S_prime, square_r, square_c, box if isBlank(square_val) else boxstar)
+        set_square(S_prime, keeper_r, keeper_c, blank if isKeeper(S[keeper_r][keeper_c]) else star)
+        set_square(S_prime, target_r, target_c, keeper if isBox(target_val) else keeperstar)
+        return S_prime
+
+    # blank square: move keeper to blank or goal
+    if isBlank(target_val) or isStar(target_val):
+        set_square(S_prime, target_r, target_c, keeper if isBlank(target_val) else keeperstar)
+        set_square(S_prime, keeper_r, keeper_c, blank if isKeeper(S[keeper_r][keeper_c]) else star)
+        return S_prime
+
+    return None
+
+
+def next_states(s):
+    '''
+    takes a state, returns the list of all states that can be reached from the given state in one move
+
+    input: 
+        s: original state
+    
+    return: 
+        a list of all possible successor states in one move
+    '''
+    directions = ['left', 'right', 'up', 'down']
+    s_list = [] 
+    # try_move for other directions
+    # append move to result
+    for d in directions: 
+        possible_move = try_move(s, d)
+        if possible_move is not None:
+            s_list.append(possible_move)
 
     return cleanUpList(s_list)
 
@@ -164,22 +281,109 @@ def next_states(s):
 # EXERCISE: Modify this function to compute the trivial
 # admissible heuristic.
 def h0(s):
-    raise NotImplementedError()
+    '''
+    Trivial heuristic h0(s)
+
+    input: 
+        s: state
+
+    return 0
+    '''
+    return 0
 
 
 # EXERCISE: Modify this function to compute the
 # number of misplaced boxes in state s (numpy array).
 def h1(s):
-    raise NotImplementedError()
+    '''
+    heuristic h1(s): counts the number of misplaced boxes
 
+    input: 
+        s: state
+    
+    return: 
+        number of misplaced boxes 
+
+    Explanation:
+        h1() provides an estimate of the moves required to solve the puzzle that is equal to or
+        less than the actual number of moves needed. It only counts those boxes that have not yet
+        been placed on their designated goal squares, presuming that each can be moved to a goal
+        with a single move. h1() tends to underestimate the true complexity involved in reaching the
+        goal, as it overlooks potential impediments such as walls or other boxes that might block the
+        path. h1 is admissible because it avoids overestimating the effort required to solve the puzzle.
+    '''
+    # count misplaced box
+    num = 0 
+    for r in s:
+        for v in r:
+            if isBox(v): 
+                num += 1
+    return num
 
 # EXERCISE: 
 # This function will be tested in various hard examples.
 # Objective: make A* solve problems as fast as possible.
 # TODO: change the function name to hUID, where UID is your student ID
-def h123456789(s):
-    raise NotImplementedError()
+def h005775001(s):
+    '''
+    heuristic h2(s) 
+    - counts the manhantann distance between misplaced boxs and empty goals
+    - checks if a box is in deadlock
 
+    input: 
+        s: state
+    
+    return: 
+        manhantann distance between misplaced boxes and empty goals
+    '''
+    # get positions of goal and box
+    goals_pos = np.column_stack(np.where((s == star) | (s == boxstar)))
+    boxes_pos = np.column_stack(np.where(s == box))
+
+    # If no boxes, state = goal state
+    if not boxes_pos.size:
+        return 0  
+
+    # Check for deadlocks: give deadlocked states high cost
+    for pos in boxes_pos:
+        if is_deadlocked(s, pos):
+            return float('inf')
+
+    # calculate minimum Manhattan distance from all box to all goal
+    dist = 0
+    for pos in boxes_pos:
+        min_dist = np.inf
+        for g in goals_pos:
+            min_dist = min(min_dist, np.abs(pos[0]-g[0]) + np.abs(pos[1]-g[1]))
+        dist += min_dist
+    
+    return dist
+
+def is_deadlocked(s, box_pos):
+    '''
+    check for box deadlock:
+        1. wall left, up
+        2. wall right, up
+        3. wall left, down
+        4. wall right, down
+
+    input:
+        s : current state
+        box position: box[r][c]
+
+    return:
+        True if the box is deadlocked
+    '''
+    r, c = box_pos
+    # Check the four adjacent walls: left, right, down, up
+    adj_wall = [(r-1, c), (r+1, c), (r, c-1), (r, c+1)]
+    walls = [get_square(s, *p) == wall for p in adj_wall]
+    
+    # corner deadlock
+    if ((walls[0] and walls[2]) or (walls[0] and walls[3]) or 
+        (walls[1] and walls[2]) or (walls[1] and walls[3])):
+        return True
+    return False
 
 # Some predefined problems with initial state s (array). Sokoban function will automatically transform it to numpy
 # array. For other function, the state s is presented as a numpy array. You can just call sokoban(init-state,
@@ -448,10 +652,43 @@ def printlists(lists):
 
 
 if __name__ == "__main__":
-    sokoban(s1, h0)
-
-    sokoban(s2, h0)
-
-    sokoban(s3, h0)
-
-    sokoban(s4, h0)
+    print('s1')
+    sokoban(s1, h005775001)
+    print('s2')
+    sokoban(s2, h005775001)
+    print('s3')
+    sokoban(s3, h005775001)
+    print('s4')
+    sokoban(s4, h005775001)
+    print('s5')
+    sokoban(s5, h005775001)
+    print('s6')
+    sokoban(s6, h005775001)
+    print('s7')
+    sokoban(s7, h005775001)
+    print('s8')
+    sokoban(s8, h005775001)
+    print('s9')
+    sokoban(s9, h005775001)
+    print('s10')
+    sokoban(s10, h005775001)
+    print('s11')
+    sokoban(s11, h005775001)
+    print('s12')
+    sokoban(s12, h005775001)
+    print('s13')
+    sokoban(s13, h005775001)
+    print('s14')
+    sokoban(s14, h005775001)
+    print('s15')
+    sokoban(s15, h005775001)
+    print('s16')
+    sokoban(s16, h005775001)
+    # print('s17')
+    # sokoban(s17, h1)
+    print('s17')
+    sokoban(s17, h005775001)
+    print('s18')
+    sokoban(s18, h005775001)
+    print('s19')
+    sokoban(s19, h005775001)
